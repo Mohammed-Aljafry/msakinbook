@@ -1,0 +1,290 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ property.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .property-detail {
+        background-color: #f8f9fa;
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .carousel-item img {
+        height: 400px;
+        object-fit: cover;
+        border-radius: 10px;
+    }
+    .detail-icon {
+        width: 24px;
+        height: 24px;
+        margin-right: 8px;
+    }
+    #property-map {
+        height: 300px;
+        width: 100%;
+        border-radius: 10px;
+        margin-top: 10px;
+    }
+    .property-status {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        padding: 5px 15px;
+        border-radius: 20px;
+        color: white;
+        font-weight: bold;
+        z-index: 1;
+    }
+    .status-available {
+        background-color: #28a745;
+    }
+    .status-unavailable {
+        background-color: #dc3545;
+    }
+    .price-tag {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #2c3e50;
+    }
+    .views-count {
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+    .detail-section {
+        margin-bottom: 1rem;
+    }
+    .detail-section h6 {
+        color: #2c3e50;
+        border-bottom: 2px solid #e9ecef;
+        padding-bottom: 0.5rem;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Status Badge -->
+    <div class="property-status {% if property.is_available %}status-available{% else %}status-unavailable{% endif %}">
+        {{ property.is_available|yesno:"متاح,غير متاح" }}
+    </div>
+
+    <div class="row">
+        <!-- Property Images -->
+        <div class="col-md-8">
+            {% if property.images.exists %}
+                <div id="propertyCarousel" class="carousel slide" data-bs-ride="carousel">
+                    <div class="carousel-inner">
+                        {% for image in property.images.all %}
+                            <div class="carousel-item {% if forloop.first %}active{% endif %}">
+                                <img src="{{ image.image.url }}" class="d-block w-100" alt="{{ property.title }}">
+                            </div>
+                        {% endfor %}
+                    </div>
+                    {% if property.images.count > 1 %}
+                        <button class="carousel-control-prev" type="button" data-bs-target="#propertyCarousel" data-bs-slide="prev">
+                            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                            <span class="visually-hidden">السابق</span>
+                        </button>
+                        <button class="carousel-control-next" type="button" data-bs-target="#propertyCarousel" data-bs-slide="next">
+                            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                            <span class="visually-hidden">التالي</span>
+                        </button>
+                    {% endif %}
+                </div>
+            {% else %}
+                <img src="{% static 'images/property-placeholder.jpg' %}" class="img-fluid rounded" alt="{{ property.title }}">
+            {% endif %}
+        </div>
+
+        <!-- Quick Info -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">{{ property.title }}</h5>
+                    <div class="views-count mb-2">
+                        <i class="fas fa-eye"></i> {{ property.views_count }} مشاهدة
+                    </div>
+                    <h6 class="card-subtitle mb-3 text-muted">
+                        {{ property.get_property_type_display }} - {{ property.get_listing_type_display }}
+                    </h6>
+                    
+                    <!-- Price -->
+                    <div class="property-detail">
+                        <div class="price-tag mb-2">
+                            {{ property.price }} {{ property.get_currency_display }}
+                        </div>
+                        <div class="detail-section">
+                            <strong>المساحة:</strong> {{ property.area }} متر مربع
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="d-grid gap-2">
+                        {% if user.is_authenticated %}
+                            <a href="{% url 'properties:create_request' %}?property={{ property.id }}" 
+                               class="btn btn-primary">
+                                طلب معاينة
+                            </a>
+                        {% else %}
+                            <a href="{% url 'accounts:login' %}?next={{ request.path }}" 
+                               class="btn btn-primary">
+                                سجل دخول للتواصل مع المالك
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed Information -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title mb-4">تفاصيل العقار</h5>
+                    
+                    <!-- Basic Information -->
+                    <div class="property-detail">
+                        <h6>المعلومات الأساسية</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>نوع العقار:</strong> {{ property.get_property_type_display }}</p>
+                                <p><strong>نوع العرض:</strong> {{ property.get_listing_type_display }}</p>
+                                <p><strong>السعر:</strong> {{ property.price }} {{ property.get_currency_display }}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>المساحة:</strong> {{ property.area }} متر مربع</p>
+                                <p><strong>تاريخ النشر:</strong> {{ property.created_at|date:"Y-m-d" }}</p>
+                                <p><strong>آخر تحديث:</strong> {{ property.updated_at|date:"Y-m-d" }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Location Information -->
+                    <div class="property-detail">
+                        <h6>معلومات الموقع</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>المحافظة:</strong> {{ property.governorate.name }}</p>
+                                <p><strong>المديرية:</strong> {{ property.district.name }}</p>
+                                {% if property.neighborhood %}
+                                    <p><strong>الحي/الشارع:</strong> {{ property.neighborhood }}</p>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>العنوان:</strong> {{ property.address }}</p>
+                                <p><strong>الموقع:</strong> {{ property.location }}</p>
+                            </div>
+                        </div>
+                        {% if property.map_location %}
+                            <div id="property-map" class="mt-3"></div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Room Details -->
+                    <div class="property-detail">
+                        <h6>تفاصيل الغرف</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <ul class="list-unstyled">
+                                    <li class="mb-2"><strong>عدد غرف النوم:</strong> {{ property.bedrooms|default:"غير محدد" }}</li>
+                                    <li class="mb-2"><strong>عدد الحمامات:</strong> {{ property.bathrooms|default:"غير محدد" }}</li>
+                                    <li class="mb-2"><strong>عدد المطابخ:</strong> {{ property.kitchens|default:"غير محدد" }}</li>
+                                    {% if property.property_type == 'apartment' %}
+                                        <li class="mb-2"><strong>الدور:</strong> {{ property.floor_number|default:"غير محدد" }}</li>
+                                    {% endif %}
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <ul class="list-unstyled">
+                                    <li class="mb-2"><strong>عدد الصالات:</strong> {{ property.living_rooms|default:"غير محدد" }}</li>
+                                    <li class="mb-2"><strong>عدد المجالس:</strong> {{ property.majlis|default:"غير محدد" }}</li>
+                                    {% if property.property_type == 'house' %}
+                                        <li class="mb-2"><strong>عدد الطوابق:</strong> {{ property.number_of_floors|default:"غير محدد" }}</li>
+                                    {% endif %}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Description -->
+                    <div class="property-detail">
+                        <h6>الوصف</h6>
+                        <p>{{ property.description|linebreaks }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Owner Information -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">معلومات المالك</h5>
+                    <div class="property-detail">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>المالك:</strong> {{ property.owner.get_full_name|default:property.owner.username }}</p>
+                                <p><strong>تاريخ التسجيل:</strong> {{ property.owner.date_joined|date:"Y-m-d" }}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>عدد العقارات:</strong> {{ property.owner.properties.count }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if user == property.owner %}
+    <!-- Owner Actions -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">إدارة العقار</h5>
+                    <div class="btn-group" role="group">
+                        <a href="{% url 'properties:edit_property' property.pk %}" class="btn btn-warning">
+                            <i class="fas fa-edit"></i> تعديل العقار
+                        </a>
+                        <a href="{% url 'properties:delete_property' property.pk %}" 
+                           class="btn btn-danger" 
+                           onclick="return confirm('هل أنت متأكد من حذف هذا العقار؟')">
+                            <i class="fas fa-trash"></i> حذف العقار
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Carousel initialization
+        var carousel = document.querySelector('#propertyCarousel');
+        if (carousel) {
+            new bootstrap.Carousel(carousel, {
+                interval: 5000
+            });
+        }
+
+        // Map initialization (if map location exists)
+        {% if property.map_location %}
+        var mapLocation = "{{ property.map_location }}";
+        // Add your map initialization code here
+        {% endif %}
+    });
+</script>
+{% endblock %}

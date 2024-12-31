@@ -1,0 +1,258 @@
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>عن مساكن</h5>
+                    <p>منصة عقارية تساعدك في العثور على منزل أحلامك</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <h5>تواصل معنا</h5>
+                    <div class="social-links">
+                        <a href="#" class="text-dark me-2"><i class="fab fa-facebook"></i></a>
+                        <a href="#" class="text-dark me-2"><i class="fab fa-twitter"></i></a>
+                        <a href="#" class="text-dark me-2"><i class="fab fa-instagram"></i></a>
+                    </div>
+                </div>
+            </div>
+            <hr>
+            <div class="text-center">
+                <p class="mb-0">&copy; 2024 مساكن. جميع الحقوق محفوظة</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <!-- base.html -->
+<script>
+    if (Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+                console.log('إذن الإشعارات ممنوح.');
+            } else if (permission === 'denied') {
+                console.log('إذن الإشعارات مرفوض.');
+            }
+        });
+    }
+</script>
+
+   
+    {% block extra_js %}  {% endblock %}
+    
+    <script>
+        
+        $(document).ready(function() {
+
+            
+            // إعداد WebSocket للإشعارات
+            const notificationSocket = new WebSocket(
+                'ws://' + window.location.host + '/ws/notifications/'
+            );
+
+            // تحديث عداد الإشعارات
+            function updateNotificationBadge(count) {
+                const badge = document.getElementById('notificationCount');
+                if (badge) {
+                    badge.textContent = count;
+                    if (count > 0) {
+                        badge.style.display = 'block';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                }
+            }
+
+            // تحديث العداد عند تحميل الصفحة
+            document.addEventListener('DOMContentLoaded', function() {
+                const count = parseInt('{{ unread_notifications_count }}');
+                if (count > 0) {
+                    updateNotificationBadge(count);
+                }
+            });
+
+            // استقبال الإشعارات الجديدة
+            notificationSocket.onmessage = function(e) {
+
+                alert('new');
+                const data = JSON.parse(e.data);
+                console.log(data);
+                if (data.type === 'notification') {
+                    //alert('message');
+                    
+                    const badge = document.getElementById('notificationCount');
+                    const currentCount = parseInt(badge.textContent || '0');
+                    updateNotificationBadge(currentCount + 1);
+
+                     // تشغيل صوت الإشعار
+                   // const notificationSound = new Audio('/static/notifications/notifications.mp3');
+                    //notificationSound.play();
+                    if (Notification.permission === 'granted') {
+                        new Notification('   إشعار جديد من مساكن بوك', {
+                        body: data.notification.text, // نص الإشعار
+                        icon:data.notification.sender.profile_picture_url
+
+                        //icon: '/static/images/notification-icon.png', // اختياري: صورة الإشعار
+                          });
+                      // إضافة حدث عند النقر على الإشعار
+                      notification.onclick = function() {
+                        
+                              // الانتقال إلى الرابط الخاص بالإشعار
+                              window.open(data.url, '_blank'); // فتح الرابط في نافذة جديدة
+                      }//end onclick
+      
+                      }//end if
+                }
+            };//end onmessage
+
+           /* // إعادة الاتصال في حالة الانقطاع
+            notificationSocket.onclose = function(e) {
+                console.log('WebSocket connection closed, trying to reconnect...');
+                setTimeout(function() {
+                    window.location.reload();
+                }, 1000);
+            };*/
+
+            // تحديث العداد عند النقر على علامة القراءة
+            $(document).on('click', '.mark-as-read', function(e) {
+                e.preventDefault();
+                const notificationId = $(this).closest('.notification-item').data('notification-id');
+                
+                $.ajax({
+                    url: `/notifications/mark-as-read/${notificationId}/`,
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrf-token]').content
+                    },
+                    success: function(response) {
+                        if (response.status === 'success') {
+                            const badge = document.getElementById('notificationCount');
+                            const currentCount = parseInt(badge.textContent);
+                            updateNotificationBadge(Math.max(0, currentCount - 1));
+                        }
+                    }
+                });
+            });
+
+            // تحديث العداد عند النقر على "تحديد الكل كمقروء"
+            $(document).on('click', '.mark-all-read', function(e) {
+                e.preventDefault();
+                
+                $.ajax({
+                    url: '/notifications/mark-all-as-read/',
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrf-token]').content
+                    },
+                    success: function(response) {
+                        if (response.status === 'success') {
+                            updateNotificationBadge(0);
+                        }
+                    }
+                });
+            });
+
+            // تحديث العداد كل دقيقة
+            //setInterval(fetchNotificationCount, 60000);
+        });//end ready
+
+        
+    </script>
+
+   
+    {% if user.is_authenticated %}
+    <script>
+        // تهيئة WebSocket للمحادثات
+        const chatSocket = new WebSocket(
+            'ws://' + window.location.host + '/ws/chat/'
+        );
+
+        function formatTime(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            
+            if (date.toDateString() === now.toDateString()) {
+                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } else if (date.getFullYear() === now.getFullYear()) {
+                return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+            } else {
+                return date.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
+            }
+        }
+
+        function updateChatList() {
+            fetch('/chat/api/conversations/')
+                .then(response => response.json())
+                .then(data => {
+                    const chatItems = document.querySelector('.chat-items');
+                    let totalUnread = 0;
+                    
+                    chatItems.innerHTML = data.conversations.map(conv => {
+                        totalUnread += conv.unread_count;
+                        const otherUser = conv.participants.find(p => p.id !== {{ user.id }});
+                        
+                        return `
+                            <a href="/chat/${otherUser.id}/" class="chat-item">
+                                <img src="${otherUser.avatar_url}" class="chat-avatar">
+                                <div class="chat-info">
+                                    <div class="d-flex justify-content-between">
+                                        <div class="chat-name">${otherUser.name}</div>
+                                        <div class="chat-time">${formatTime(conv.last_message_time)}</div>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <div class="chat-preview">${conv.last_message || 'لا توجد رسائل'}</div>
+                                        ${conv.unread_count > 0 ? `<span class="unread-badge">${conv.unread_count}</span>` : ''}
+                                    </div>
+                                </div>
+                            </a>
+                        `;
+                    }).join('');
+                    
+                    const totalUnreadBadge = document.querySelector('.total-unread-badge');
+                    if (totalUnread > 0) {
+                        totalUnreadBadge.textContent = totalUnread;
+                        totalUnreadBadge.style.display = 'block';
+                    } else {
+                        totalUnreadBadge.style.display = 'none';
+                    }
+                });
+        }
+
+        // Update chat list every 10 seconds
+        updateChatList();
+        setInterval(updateChatList, 10000);
+        
+        // استقبال تحديثات المحادثات
+        chatSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            if (data.type === 'chat_update') {
+                updateChatList();
+            }
+        };
+
+        // إعادة الاتصال في حالة الانقطاع
+        chatSocket.onclose = function(e) {
+            console.log('Chat WebSocket connection closed, trying to reconnect...');
+            setTimeout(function() {
+                window.location.reload();
+            }, 1000);
+        };
+
+        // تحديث القائمة عند تحميل الصفحة
+        $(document).ready(function() {
+            updateChatList();
+        });
+
+        let chat_icon=document.getElementById('chatDropdown');
+        
+        chat_icon.addEventListener('click',function(e){
+            chat_icon.classList.add('active');
+        });
+      
+    </script>
+
+    {% endif %}
+</body>
+</html>

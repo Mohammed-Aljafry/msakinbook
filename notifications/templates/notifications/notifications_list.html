@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}الإشعارات{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">الإشعارات</h5>
+                    {% if notifications %}
+                    <button class="btn btn-link text-decoration-none mark-all-read">
+                        <i class="fas fa-check-double"></i> تحديد الكل كمقروء
+                    </button>
+                    {% endif %}
+                </div>
+                <div class="card-body p-0">
+                    {% if notifications %}
+                    <div class="list-group list-group-flush">
+                        {% for notification in notifications %}
+                        <div class="list-group-item notification-item {% if not notification.is_read %}unread{% endif %}" 
+                             data-notification-id="{{ notification.id }}">
+                            <div class="d-flex">
+                                <!-- صورة المرسل -->
+                                <div class="flex-shrink-0">
+                                    <a href="{% url 'accounts:user_profile' notification.sender.username %}" class="text-decoration-none">
+                                       <p>{{notification.sender.profile.}}</p>
+                                        {% if notification.sender.profile.profile_picture %}
+                                        <img src="{{ notification.sender.profile.profile_picture }}" 
+                                             class="rounded-circle" 
+                                             width="40" height="40" 
+                                             alt="{{ notification.sender.get_full_name }}">
+                                        {% else %}
+                                        <img src="{% static 'images/default_avatar.svg' %}" 
+                                             class="rounded-circle" 
+                                             width="40" height="40" 
+                                             alt="{{ notification.sender.get_full_name }}">
+                                        {% endif %}
+                                    </a>
+                                </div>
+                                <!-- محتوى الإشعار -->
+                                <div class="flex-grow-1 ms-3">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            {% if notification.notification_type == 'comment' %}
+                                                <a href="{% url 'properties:property_list' %}?property={{ notification.content_object.property.id }}&comment={{ notification.content_object.id }}"
+                                                   class="text-decoration-none">
+                                                    <p class="mb-1 notification-text">{{ notification.text }}</p>
+                                                </a>
+                                            {% elif notification.notification_type == 'comment_like' %}
+                                                <a href="{% url 'properties:property_list' %}?highlight_comment={{ notification.content_object.comment.id }}&property_id={{ notification.content_object.comment.property.id }}" 
+                                                   class="text-decoration-none">
+                                                    <p class="mb-1 notification-text">{{ notification.text }}</p>
+                                                </a>
+                                            {% elif notification.notification_type == 'comment_reply' %}
+                                                <a href="{% url 'properties:property_list' %}?highlight_comment={{ notification.content_object.id }}&property_id={{ notification.content_object.parent_comment.property.id }}" 
+                                                   class="text-decoration-none">
+                                                    <p class="mb-1 notification-text">{{ notification.text }}</p>
+                                                </a>
+                                            {% elif notification.notification_type == 'like' %}
+                                                <a href="{% url 'properties:property_list' %}?property={{ notification.content_object.id }}"
+                                                   class="text-decoration-none">
+                                                    <p class="mb-1 notification-text">{{ notification.text }}</p>
+                                                </a>
+                                            {% else %}
+                                                <p class="mb-1 notification-text">{{ notification.text }}</p>
+                                            {% endif %}
+                                            <small class="text-muted">{{ notification.created_at|timesince }}</small>
+                                        </div>
+                                        {% if not notification.is_read %}
+                                        <button class="btn btn-link text-decoration-none mark-as-read p-0 ms-2">
+                                            <i class="fas fa-check text-success"></i>
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="far fa-bell fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">لا توجد إشعارات</h5>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.notification-item {
+    transition: background-color 0.3s ease;
+}
+.notification-item.unread {
+    background-color: #f8f9fa;
+    border-right: 3px solid #0d6efd;
+}
+.notification-item:hover {
+    background-color: #f8f9fa;
+}
+.notification-text {
+    color: #212529;
+    font-size: 0.95rem;
+}
+.mark-as-read {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+.notification-item:hover .mark-as-read {
+    opacity: 1;
+}
+</style>
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // تحديث العداد في الصفحة الرئيسية
+    const unreadCount = $('.notification-item.unread').length;
+    const badge = window.parent.document.getElementById('notificationCount');
+    if (badge) {
+        badge.textContent = unreadCount;
+        badge.style.display = unreadCount > 0 ? 'block' : 'none';
+    }
+
+    // تحديد إشعار كمقروء
+    $('.mark-as-read').click(function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var notificationItem = $(this).closest('.notification-item');
+        var notificationId = notificationItem.data('notification-id');
+        
+        $.ajax({
+            url: `/notifications/mark-as-read/${notificationId}/`,
+            type: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            success: function(response) {
+                if (response.status === 'success') {
+                    notificationItem.removeClass('unread');
+                    notificationItem.find('.mark-as-read').fadeOut();
+                    
+                    // تحديث العداد في الصفحة الرئيسية
+                    const newUnreadCount = $('.notification-item.unread').length;
+                    const badge = window.parent.document.getElementById('notificationCount');
+                    if (badge) {
+                        badge.textContent = newUnreadCount;
+                        badge.style.display = newUnreadCount > 0 ? 'block' : 'none';
+                    }
+                }
+            }
+        });
+    });
+
+    // تحديد كل الإشعارات كمقروءة
+    $('.mark-all-read').click(function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        $.ajax({
+            url: '/notifications/mark-all-as-read/',
+            type: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            success: function(response) {
+                if (response.status === 'success') {
+                    $('.notification-item').removeClass('unread');
+                    $('.mark-as-read').fadeOut();
+                    
+                    // إخفاء العداد في الصفحة الرئيسية
+                    const badge = window.parent.document.getElementById('notificationCount');
+                    if (badge) {
+                        badge.textContent = '0';
+                        badge.style.display = 'none';
+                    }
+                }
+            }
+        });
+    });
+});
+</script>
+{% endblock extra_js %}
+{% endblock content %}

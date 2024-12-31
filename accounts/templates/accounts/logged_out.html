@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+
+{% block title %}تم تسجيل الخروج{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-body text-center">
+                    <h2 class="mb-4">تم تسجيل الخروج بنجاح</h2>
+                    <p class="mb-4">شكراً لزيارتك. نتمنى أن نراك مرة أخرى قريباً!</p>
+                    <a href="{% url 'accounts:login' %}" class="btn btn-primary">تسجيل الدخول مرة أخرى</a>
+                    <a href="{% url 'home:home' %}" class="btn btn-outline-primary ms-2">العودة للرئيسية</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

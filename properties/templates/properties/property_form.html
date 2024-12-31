@@ -1,0 +1,254 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load crispy_forms_tags %}
+
+{% block extra_css %}
+<style>
+    .card {
+        border: none;
+        border-radius: 15px;
+    }
+    .card-body {
+        padding: 2rem;
+    }
+    h4 {
+        color: #333;
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #f0f0f0;
+    }
+    .form-control {
+        border-radius: 10px;
+    }
+    .btn-primary {
+        border-radius: 10px;
+        padding: 0.8rem;
+    }
+    .property-form .mb-4:not(:last-child) {
+        border-bottom: 1px solid #eee;
+        padding-bottom: 2rem;
+    }
+    .custom-file-input ~ .custom-file-label::after {
+        content: "Browse";
+    }
+    .img-preview {
+        width: 100%;
+        height: 150px;
+        object-fit: cover;
+    }
+    #map {
+        height: 300px;
+        width: 100%;
+        border-radius: 10px;
+        margin-top: 10px;
+    }
+</style>
+<link rel="stylesheet" href="{% static 'css/custom.css' %}">
+{% endblock %}
+
+{% block title %}إضافة عقار جديد{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="col-lg-10 mx-auto">
+        <div class="card shadow">
+            <div class="card-body">
+                <h2 class="card-title text-center mb-4">إضافة عقار جديد</h2>
+                <form method="POST" enctype="multipart/form-data" class="property-form">
+                    {% csrf_token %}
+                    
+                    <!-- Basic Information -->
+                    <div class="mb-4">
+                        <h4>المعلومات الأساسية</h4>
+                        <div class="row">
+                            <div class="col-md-6">
+                                {{ form.title|as_crispy_field }}
+                                {{ form.property_type|as_crispy_field }}
+                                {{ form.listing_type|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.price|as_crispy_field }}
+                                {{ form.currency|as_crispy_field }}
+                                {{ form.area|as_crispy_field }}
+                                {{ form.area_measurment|as_crispy_field }}
+
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Location Information -->
+                    <div class="mb-4">
+                        <h4>معلومات الموقع</h4>
+                        <div class="row">
+                            <div class="col-md-6">
+                                {{ form.governorate|as_crispy_field }}
+                                {{ form.district|as_crispy_field }}
+                                {{ form.neighborhood|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.location|as_crispy_field }}
+                                {{ form.address|as_crispy_field }}
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-12">
+                                {{ form.map_location|as_crispy_field }}
+                                <div id="map"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Property Details -->
+                    <div class="mb-4">
+                        <h4>تفاصيل العقار</h4>
+                        <div class="row">
+                            <div class="col-md-4">
+                                {{ form.bedrooms|as_crispy_field }}
+                                {{ form.living_rooms|as_crispy_field }}
+                            </div>
+                            <div class="col-md-4">
+                                {{ form.bathrooms|as_crispy_field }}
+                                {{ form.kitchens|as_crispy_field }}
+                            </div>
+                            <div class="col-md-4">
+                                {{ form.majlis|as_crispy_field }}
+                                <div id="floor-details">
+                                    {{ form.floor_number|as_crispy_field }}
+                                    {{ form.number_of_floors|as_crispy_field }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Description -->
+                    <div class="mb-4">
+                        <h4>الوصف</h4>
+                        <div class="row">
+                            <div class="col-12">
+                                {{ form.description|as_crispy_field }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Images -->
+                    <div class="mb-4">
+                        <h4>صور العقار</h4>
+                        <div class="custom-file">
+                            <input type="file" class="custom-file-input" id="id_images" name="images" accept="image/*" multiple>
+                            <label class="custom-file-label" for="id_images">اختر صور للعقار</label>
+                        </div>
+                        <small class="form-text text-muted mt-2">{{ form.images.help_text }}</small>
+                        <div id="image-preview" class="row mt-3"></div>
+                    </div>
+
+                    <div class="text-center">
+                        <button type="submit" class="btn btn-primary btn-lg">حفظ العقار</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // تحديث المديريات عند تغيير المحافظة
+        const governorateSelect = document.getElementById('id_governorate');
+        const districtSelect = document.getElementById('id_district');
+
+        if (governorateSelect) {
+            governorateSelect.addEventListener('change', function() {
+                const governorateId = this.value;
+                console.log('Selected governorate:', governorateId); // للتأكد من أن الحدث يعمل
+                
+                // تفريغ قائمة المديريات
+                districtSelect.innerHTML = '<option value="">---------</option>';
+                
+                if (governorateId) {
+                    // جلب المديريات من الخادم
+                    const url = `/properties/api/districts/${governorateId}/`;
+                    console.log('Fetching districts from:', url); // للتأكد من الرابط
+                    
+                    fetch(url)
+                        .then(response => {
+                            console.log('Response:', response); // للتأكد من الاستجابة
+                            return response.json();
+                        })
+                        .then(data => {
+                            console.log('Districts data:', data); // للتأكد من البيانات
+                            data.forEach(district => {
+                                const option = document.createElement('option');
+                                option.value = district.id;
+                                option.textContent = district.name;
+                                districtSelect.appendChild(option);
+                            });
+                        })
+                        .catch(error => {
+                            console.error('Error fetching districts:', error);
+                        });
+                }
+            });
+        }
+
+        // File Input Handler
+        const fileInput = document.getElementById('id_images');
+        const fileLabel = document.querySelector('.custom-file-label');
+        const previewContainer = document.getElementById('image-preview');
+
+        if (fileInput && fileLabel) {
+            fileInput.addEventListener('change', function(e) {
+                if (this.files.length > 0) {
+                    fileLabel.textContent = `تم اختيار ${this.files.length} صورة`;
+                } else {
+                    fileLabel.textContent = 'اختر صور للعقار';
+                }
+
+                previewContainer.innerHTML = '';
+                
+                Array.from(this.files).forEach(file => {
+                    const reader = new FileReader();
+                    const previewCol = document.createElement('div');
+                    previewCol.className = 'col-md-3 mb-3';
+                    
+                    const img = document.createElement('img');
+                    img.className = 'img-thumbnail img-preview';
+                    
+                    reader.onload = function(e) {
+                        img.src = e.target.result;
+                    }
+                    
+                    previewCol.appendChild(img);
+                    reader.readAsDataURL(file);
+                    previewContainer.appendChild(previewCol);
+                });
+            });
+        }
+
+        // Property Type Dependent Fields
+        const propertyTypeSelect = document.getElementById('id_property_type');
+        const floorNumber = document.getElementById('div_id_floor_number');
+        const numberOfFloors = document.getElementById('div_id_number_of_floors');
+
+        if (propertyTypeSelect && floorNumber && numberOfFloors) {
+            function updateFloorFields() {
+                const propertyType = propertyTypeSelect.value;
+                if (propertyType === 'apartment') {
+                    floorNumber.style.display = 'block';
+                    numberOfFloors.style.display = 'none';
+                } else if (propertyType === 'house') {
+                    floorNumber.style.display = 'none';
+                    numberOfFloors.style.display = 'block';
+                } else {
+                    floorNumber.style.display = 'none';
+                    numberOfFloors.style.display = 'none';
+                }
+            }
+
+            propertyTypeSelect.addEventListener('change', updateFloorFields);
+            updateFloorFields(); // Initial state
+        }
+    });
+</script>
+{% endblock %}

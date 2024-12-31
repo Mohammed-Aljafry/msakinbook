@@ -1,0 +1,601 @@
+{% extends 'base.html' %}
+{% load static %}
+
+
+{% block title %}العقارات{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            {% if properties %}
+                {% for property in properties %}
+                <div class="card mb-4 shadow-sm" id="property-{{ property.pk }}" data-property-id="{{ property.pk }}">
+                    <!-- رأس المنشور -->
+                    <div class="card-header bg-white">
+                        <div class="d-flex align-items-center">
+                            <div class="d-flex align-items-center">
+                                <img src="{{ property.owner.profile.avatar_url|default:'/static/img/default-avatar.png' }}" 
+                                     class="rounded-circle me-2" 
+                                     width="40" height="40" 
+                                     alt="{{ property.owner.get_full_name|default:property.owner.username }}">
+                                <div>
+                                    <a href="{% url 'accounts:user_profile' property.owner.username %}" class="text-decoration-none text-dark">
+                                        <span class="fw-bold">{{ property.owner.get_full_name|default:property.owner.username }}</span>
+                                    </a>
+                                    <div class="text-muted small">  {{ property.created_at|timesince }}</div>
+                                </div>
+                            </div>
+                            
+                            {% if user.is_authenticated %}
+                                {% if property.owner != user %}
+                                    <div class="ms-auto">
+                                        {% if property.owner.profile in user.profile.following.all %}
+                                        <form action="{% url 'accounts:unfollow_user' property.owner.username %}?next={{ request.path|urlencode }}" method="post" class="d-inline">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-outline-danger btn-sm">
+                                                <i class="fas fa-user-minus"></i> إلغاء المتابعة
+                                            </button>
+                                        </form>
+                                        {% else %}
+                                        <form action="{% url 'accounts:follow_user' property.owner.username %}?next={{ request.path|urlencode }}" method="post" class="d-inline">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-primary btn-sm">
+                                                <i class="fas fa-user-plus"></i> متابعة
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                        <a href="{% url 'chat:chat_room' property.owner.id %}" class="btn btn-outline-success btn-sm">
+                                            <i class="fas fa-comments"></i> محادثة
+                                        </a>
+                                    </div>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- صور العقار -->
+                    {% if property.images.all %}
+                    <div id="propertyCarousel{{ property.pk }}" class="carousel slide" data-bs-ride="carousel" data-bs-interval="3000">
+                        <div class="carousel-inner">
+                            {% for image in property.images.all %}
+                            <div class="carousel-item {% if forloop.first %}active{% endif %}">
+                                <img src="{{ image.image.url }}" class="d-block w-100" alt="صورة العقار" style="height: 400px; object-fit: cover;">
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% if property.images.count > 1 %}
+                        <button class="carousel-control-prev" type="button" data-bs-target="#propertyCarousel{{ property.pk }}" data-bs-slide="prev">
+                            {% comment %} <span class="carousel-control-prev-icon  " ></span> {% endcomment %}
+                            <span aria-hidden="true"><i class="fas fa-chevron-right fa-3x text-primary"></i></span>
+                            
+                        </button>
+                        <button class="carousel-control-next" type="button" data-bs-target="#propertyCarousel{{ property.pk }}" data-bs-slide="next">
+                            {% comment %} <span class="carousel-control-next-icon" ></span> {% endcomment %}
+                            <span aria-hidden="true">
+                                <i class="fas fa-chevron-left fa-3x text-primary"> </i>
+                             </span>
+                                              
+                         </button>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <img src="{% static 'img/placeholder.jpg' %}" class="card-img-top" alt="صورة افتراضية" style="height: 400px; object-fit: cover;">
+                    {% endif %}
+
+                    <!-- محتوى العقار -->
+                    <div class="card-body">
+                        <h5 class="card-title mb-2">{{ property.title }}</h5>
+                        
+                        <!-- معلومات رئيسية -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="text-primary fw-bold">السعر: {{ property.price }} {{ property.get_currency_display }}</span>
+                                <span class="badge {% if property.is_available %}bg-success{% else %}bg-danger{% endif %}">
+                                    {% if property.is_available %}متاح{% else %}غير متاح{% endif %}
+                                </span>
+                            </div>
+                            <div class="row text-muted small">
+                                <div class="col-6 mb-1">
+                                    <i class="fas fa-home text-primary"></i> نوع العقار: {{ property.get_property_type_display }}
+                                </div>
+                                <div class="col-6 mb-1">
+                                    <i class="fas fa-tag text-success"></i> نوع العرض: {{ property.get_listing_type_display }}
+                                </div>
+                                <div class="col-6 mb-1">
+                                    <i class="fas fa-map-marker-alt text-danger"></i> الموقع: {{ property.governorate.name }} - {{ property.district.name }}
+                                </div>
+
+                                <div class="col-6 mb-1">
+                                    <i class="fas fa-map-marker-alt text-danger"></i> الحي: {{ property.location }} - {{ property.address }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- تفاصيل الغرف -->
+                        <div class="row text-muted small mb-3">
+                            <div class="col-6 mb-1">
+                                <i class="fas fa-bed"></i> عدد غرف النوم: {{ property.bedrooms|default_if_none:"0" }}
+                            </div>
+                            <div class="col-6 mb-1">
+                                <i class="fas fa-bath"></i> عدد الحمامات: {{ property.bathrooms|default_if_none:"0" }}
+                            </div>
+                            <div class="col-6 mb-1">
+                                <i class="fas fa-couch text-success"></i> عدد المجالس: {{ property.majlis|default_if_none:"0" }}
+                            </div>
+                            <div class="col-6 mb-1">
+                                <i class="fas fa-utensils"></i> عدد المطابخ: {{ property.kitchens|default_if_none:"0" }}
+                            </div>
+                            <div class="col-6 mb-1">
+                                <i class="fas fa-couch"></i> عدد الصالات: {{ property.living_rooms|default_if_none:"0" }}
+                            </div>
+                            <div class="col-6 mb-1">
+                                <i class="fas fa-ruler-combined"></i> المساحة: {{ property.area|default_if_none:"0" }} متر مربع
+                            </div>
+                        </div>
+                        
+                        <!-- معلومات إضافية -->
+                        {% if property.property_type == 'apartment' and property.floor_number %}
+                            <div class="text-muted small mb-2">
+                                <i class="fas fa-building"></i> الدور: {{ property.floor_number }}
+                            </div>
+                        {% endif %}
+                        {% if property.property_type == 'house' and property.number_of_floors %}
+                            <div class="text-muted small mb-2">
+                                <i class="fas fa-layers"></i> عدد الطوابق: {{ property.number_of_floors }}
+                            </div>
+                        {% endif %}
+
+                        <!-- أزرار التفاعل -->
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div>
+                                <button  class="btn btn-link like-btn p-0 me-3 {% if request.user in property.liked_by.all %}liked{% endif %}" 
+                                        data-property-id="{{ property.id }}">
+                                    <i class="{% if request.user in property.liked_by.all %}fas{% else %}far{% endif %} fa-heart {% if request.user in property.liked_by.all %}text-danger{% endif %}"></i>
+                                    <span class="like-count">{{ property.liked_by.count }}</span>
+                                </button>
+                                <button class="btn btn-link text-decoration-none p-0 me-2" 
+                                        type="button" 
+                                        data-bs-toggle="collapse" 
+                                        data-bs-target="#comments-{{ property.id }}" 
+                                        aria-expanded="false">
+                                    <i class="far fa-comment"></i>
+                                    <span class="comment-count">{{ property.comments.count }}</span> تعليقات
+                                </button>
+                                <button class="btn btn-link text-dark share-btn p-0" 
+                                        data-property-url="{{ request.build_absolute_uri }}">
+                                    <i class="far fa-share-square"></i> مشاركة
+                                </button>
+                            </div>
+                            <div>
+                                <a href="{% url 'properties:property_detail' property.pk %}" class="btn btn-primary">
+                                    عرض التفاصيل
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- قسم التعليقات -->
+                        <div class="mt-3">
+                            <div class="collapse" id="comments-{{ property.id }}">
+                                <form class="comment-form mb-3" data-property-id="{{ property.id }}">
+                                    {% csrf_token %}
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" name="content" placeholder="اكتب تعليقاً..." required>
+                                        <button type="submit" class="btn btn-primary" >تعليق</button>
+                                    </div>
+                                </form>
+                                
+                                <div class="comments-list">
+                                    {% for comment in property.comments.all|dictsortreversed:"created_at" %}
+                                    {% if not comment.parent %}
+                                    <div class="d-flex mb-3" id="comment-{{ comment.pk }}">
+                                        <div class="flex-shrink-0">
+                                            <img src="{{ comment.user.profile.profile_picture.url|default:'/static/img/default-avatar.png' }}" 
+                                                 class="rounded-circle" 
+                                                 width="32" height="32" 
+                                                 alt="{{ comment.user.get_full_name|default:comment.user.username }}">
+                                        </div>
+                                        <div class="flex-grow-1 ms-2">
+                                            <!-- التعليق الأصلي -->
+                                            <div class="bg-light rounded p-2">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <a href="{% url 'accounts:user_profile' comment.user.username %}" class="text-decoration-none">
+                                                        <small class="fw-bold text-dark">{{ comment.user.get_full_name|default:comment.user.username }}</small>
+                                                    </a>
+                                                    <small class="text-muted">{{ comment.created_at|timesince }}</small>
+                                                </div>
+                                                <p class="mb-1">{{ comment.content }}</p>
+                                                <div class="d-flex align-items-center">
+                                                    <!-- زر الإعجاب -->
+                                                    <button class="btn btn-link p-0 me-3 like-comment-btn" 
+                                                            data-comment-id="{{ comment.id }}"
+                                                            {% if user.is_authenticated %}
+                                                            data-liked="{% if user in comment.liked_by.all %}true{% else %}false{% endif %}"
+                                                            {% endif %}>
+                                                        <i class="{% if user in comment.liked_by.all %}fas{% else %}far{% endif %} fa-heart {% if user in comment.liked_by.all %}text-danger{% endif %}"></i>
+                                                        <span class="comment-likes-count">{{ comment.liked_by.count }}</span>
+                                                    </button>
+                                                    <!-- زر الرد -->
+                                                    <button class="btn btn-link p-0 reply-btn" 
+                                                            data-comment-id="{{ comment.id }}">
+                                                        <i class="far fa-comment"></i> رد
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <!-- نموذج الرد (مخفي افتراضياً) -->
+                                            <div class="reply-form-container mt-2 d-none" id="reply-form-{{ comment.id }}" >
+                                                <form class="reply-form" data-comment-id="{{ comment.id }}">
+                                                    {% csrf_token %}
+                                                    <div class="input-group input-group-sm">
+                                                        <input type="text" class="form-control" 
+                                                               placeholder="اكتب رداً..." 
+                                                               required>
+                                                        <button type="submit" class="btn btn-primary">رد</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+
+                                            <!-- الردود -->
+                                            <div class="replies-container ms-4 mt-2">
+                                                {% for reply in comment.replies.all %}
+                                                <div class="d-flex mb-2" id="comment-{{ reply.pk }}">
+                                                    <div class="flex-shrink-0">
+                                                        <img src="{{ reply.user.profile.profile_picture.url|default:'/static/img/default-avatar.png' }}" 
+                                                             class="rounded-circle" 
+                                                             width="24" height="24" 
+                                                             alt="{{ reply.user.get_full_name|default:reply.user.username }}">
+                                                    </div>
+                                                    <div class="flex-grow-1 ms-2">
+                                                        <div class="bg-light rounded p-2">
+                                                            <div class="d-flex justify-content-between align-items-center">
+                                                                <a href="{% url 'accounts:user_profile' reply.user.username %}" class="text-decoration-none">
+                                                                    <small class="fw-bold text-dark">{{ reply.user.get_full_name|default:reply.user.username }}</small>
+                                                                </a>
+                                                                <small class="text-muted">{{ reply.created_at|timesince }}</small>
+                                                            </div>
+                                                            <p class="mb-1">{{ reply.content }}</p>
+                                                            <div class="d-flex align-items-center">
+                                                                <!-- زر الإعجاب للرد -->
+                                                                <button class="btn btn-link p-0 like-comment-btn" 
+                                                                        data-comment-id="{{ reply.id }}"
+                                                                        {% if user.is_authenticated %}
+                                                                        data-liked="{% if user in reply.liked_by.all %}true{% else %}false{% endif %}"
+                                                                        {% endif %}>
+                                                                    <i class="{% if user in reply.liked_by.all %}fas{% else %}far{% endif %} fa-heart {% if user in reply.liked_by.all %}text-danger{% endif %}"></i>
+                                                                    <span class="comment-likes-count">{{ reply.liked_by.count }}</span>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-home fa-4x text-muted mb-3"></i>
+                    <h3>لا توجد عقارات متاحة</h3>
+                    <p class="text-muted">لم يتم إضافة أي عقارات بعد</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- {% comment %} <script src="{% static 'js/websocket.js' %}"></script> {% endcomment %} -->
+
+
+<script>
+    
+$(document).ready(function() {
+    // Get CSRF token once
+    const csrftoken = $('input[name="csrfmiddlewaretoken"]').val();
+
+    // إضافة تعليق
+    $(document).on('submit', '.comment-form', function(e) {
+        e.preventDefault();
+        const form = $(this);
+        const propertyId = form.data('property-id');
+        const input = form.find('input[name="content"]');
+        const content = input.val().trim();
+        
+        if (content) {
+            $.ajax({
+                url: `/properties/property/${propertyId}/comment/`,
+                type: 'POST',
+                data: {
+                    content: content,
+                    csrfmiddlewaretoken: csrftoken
+                },
+                success: function(response) {
+                    if (response.status === 'success') {
+                        const commentHtml = `
+                            <div class="d-flex mb-2" id="comment-${response.comment.id}">
+                                <div class="flex-shrink-0">
+                                    <img src="${response.comment.profile_picture_url || '/static/img/default-avatar.png'}" 
+                                         class="rounded-circle" 
+                                         width="32" height="32" 
+                                         alt="${response.comment.user}">
+                                </div>
+                                <div class="flex-grow-1 ms-2">
+                                    <div class="bg-white p-2 rounded">
+                                        <a href="/accounts/user_profile/${response.comment.user}" 
+                                           class="text-dark fw-bold text-decoration-none">
+                                            ${response.comment.user}
+                                        </a>
+                                        <p class="mb-0">${response.comment.content}</p>
+                                    </div>
+                                    <small class="text-muted">${response.comment.created_at}</small>
+                                    <div class="mt-1">
+                                        <button class="btn btn-sm text-primary like-comment-btn" 
+                                                data-comment-id="${response.comment.id}">
+                                            <i class="far fa-heart"></i> <span class="like-count">0</span>
+                                        </button>
+                                        <button class="btn btn-sm text-primary reply-btn" 
+                                                data-comment-id="${response.comment.id}">
+                                            <i class="far fa-comment"></i> رد
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        form.siblings('.comments-list').prepend(commentHtml);
+                        input.val('');
+                        
+                        // تحديث عدد التعليقات
+                        const commentCount = form.closest('.card-body').find('.comment-count');
+                        const currentCount = parseInt(commentCount.text()) || 0;
+                        commentCount.text(currentCount + 1);
+                    } else {
+                        alert('حدث خطأ أثناء إضافة التعليق');
+                    }
+                },
+                error: function() {
+                    alert('حدث خطأ أثناء إضافة التعليق');
+                }
+            });
+        }
+    });
+
+    
+    // الإعجاب بالعقار
+    
+    $(document).on('click', '.like-btn', function(e) {
+        
+        e.preventDefault();
+        const btn = $(this);
+        const propertyId = btn.data('property-id');
+        
+        $.ajax({
+            url: `/properties/property/${propertyId}/like/`,
+            type: 'POST',
+            data: {
+                csrfmiddlewaretoken: csrftoken
+            },
+            success: function(response) {
+                if (response.status === 'success') {
+                    const likeCount = btn.find('.like-count');
+                    const icon = btn.find('i');
+                    
+                    if (response.liked) {
+                        icon.removeClass('far').addClass('fas');
+                        btn.addClass('text-danger');
+                    } else {
+                        icon.removeClass('fas').addClass('far');
+                        btn.removeClass('text-danger');
+                    }
+                    
+                    likeCount.text(response.likes_count);
+                }
+            },
+            error: function() {
+                alert('حدث خطأ أثناء تسجيل الإعجاب');
+            }
+        });
+    });
+ 
+    // الإعجاب بالتعليق
+    $(document).on('click', '.like-comment-btn', function(e) {
+        e.preventDefault();
+        const btn = $(this);
+        const commentId = btn.data('comment-id');
+        
+        $.ajax({
+            url: `/properties/comment/${commentId}/like/`,
+            type: 'POST',
+            data: {
+                csrfmiddlewaretoken: csrftoken
+            },
+            success: function(response) {
+                if (response.status === 'success') {
+                    const likeCount = btn.find('.comment-likes-count');
+                    const icon = btn.find('i');
+                    
+                    if (response.liked) {
+                        icon.removeClass('far').addClass('fas');
+                        btn.addClass('text-danger');
+                    } else {
+                        icon.removeClass('fas').addClass('far');
+                        btn.removeClass('text-danger');
+                    }
+                    
+                    likeCount.text(response.likes_count);
+                    
+                    
+                }
+            },
+            error: function() {
+                alert('حدث خطأ أثناء تسجيل الإعجاب بالتعليق');
+            }
+        });
+    });
+
+    // إضافة رد على التعليق
+    $(document).on('click', '.reply-btn', function() {
+     console.log($(this).closest('.comment-actions'));
+
+        
+        const commentId = $(this).data('comment-id');
+        const replyForm = $(`
+            <form class="reply-form mt-2" data-comment-id="${commentId}">
+                <input type="hidden" name="csrfmiddlewaretoken" value="${csrftoken}">
+                <div class="input-group">
+                    <input type="text" class="form-control form-control-sm" 
+                           name="content" placeholder="اكتب رداً..." required>
+                    <button type="submit" class="btn btn-primary btn-sm">رد</button>
+                </div>
+            </form>
+        `);
+        $('.reply-form').remove(); // إغلاق النماذج المفتوحة
+const existingForm = $(this).closest('.comment-item').find('.reply-form');
+        //const existingForm = $(this).closest('.comment-actions').find('.reply-form');
+        if (existingForm.length) {
+            existingForm.remove();
+            
+        } else {
+            
+            $(this).closest('.comment-actions').after(replyForm);
+            replyForm.find('input[name="content"]').focus();
+            
+        }
+
+        
+    });
+
+    $(document).on('submit', '.reply-form', function(e) {
+        e.preventDefault();
+        const form = $(this);
+        const commentId = form.data('comment-id');
+        const content = form.find('input[name="content"]').val().trim();
+        
+        if (content) {
+            $.ajax({
+                url: `/properties/comment/${commentId}/reply/`,
+                type: 'POST',
+                data: {
+                    content: content,
+                    csrfmiddlewaretoken: csrftoken
+                },
+                success: function(response) {
+                    if (response.status === 'success') {
+                        const replyHtml = `
+                            <div class="d-flex mb-2" id="comment-${response.reply.id}">
+                                <div class="flex-shrink-0">
+                                    <img src="${response.reply.profile_picture_url || '/static/img/default-avatar.png'}" 
+                                         class="rounded-circle" 
+                                         width="24" height="24" 
+                                         alt="${response.reply.user}">
+                                </div>
+                                <div class="flex-grow-1 ms-2">
+                                    <div class="bg-white p-2 rounded">
+                                        <a href="/accounts/user_profile/${response.reply.user}" 
+                                           class="text-dark fw-bold text-decoration-none">
+                                            ${response.reply.user}
+                                        </a>
+                                        <p class="mb-0">${response.reply.content}</p>
+                                    </div>
+                                    <small class="text-muted">${response.reply.created_at}</small>
+                                </div>
+                            </div>
+                        `;
+                        
+                        const repliesContainer = form.closest('.comment-item')
+                            .find('.replies-container');
+                        repliesContainer.append(replyHtml);
+                        form.remove();
+                    } else {
+                        alert('حدث خطأ أثناء إضافة الرد');
+                    }
+                },
+                error: function() {
+                    alert(' fحدث خطأ أثناء إضافة الرد');
+                }
+            });
+        }
+    });
+    
+});
+
+
+
+
+
+</script>
+
+<script>
+    // تعريف متغير لتخزين معرف المستخدم الحالي
+    const currentUserId = {{ request.user.id|default:'null' }};
+    console.log('user id'+currentUserId);
+</script>
+
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const propertyId = urlParams.get('property');
+    const commentId = urlParams.get('comment');
+
+    if (propertyId) {
+        const propertyElement = document.getElementById('property-' + propertyId);
+        if (propertyElement) {
+            // التمرير إلى العقار
+            propertyElement.scrollIntoView({ behavior: 'smooth' });
+
+            // إذا كان هناك تعليق
+            if (commentId) {
+                // البحث عن زر التعليقات
+                const commentsBtn = propertyElement.querySelector('[data-bs-target="#comments-' + propertyId + '"]');
+                const commentsSection = document.getElementById('comments-' + propertyId);
+                
+                if (commentsBtn && commentsSection) {
+                    // فتح قسم التعليقات
+                    new bootstrap.Collapse(commentsSection).show();
+                    
+                    // البحث عن التعليق وتمييزه
+                    const findComment = () => {
+                        const commentElement = document.getElementById('comment-' + commentId);
+                        if (commentElement) {
+                            setTimeout(() => {
+                                commentElement.scrollIntoView({ behavior: 'smooth' });
+                                commentElement.style.backgroundColor = '#EC7B1EFF';
+                                setTimeout(() => {
+                                    commentElement.style.backgroundColor = '';
+                                }, 5000);
+                            }, 500);
+                            return true;
+                        }
+                        return false;
+                    };
+
+                    // محاولة العثور على التعليق عدة مرات
+                    let attempts = 0;
+                    const maxAttempts = 10;
+                    const interval = setInterval(() => {
+                        if (findComment() || attempts >= maxAttempts) {
+                            clearInterval(interval);
+                        }
+                        attempts++;
+                    }, 100);
+                }
+            }
+        }
+    }
+});
+</script>
+
+
+{% endblock %}

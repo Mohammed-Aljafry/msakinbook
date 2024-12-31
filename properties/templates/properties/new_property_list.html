@@ -1,0 +1,182 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<!-- قسم البحث الرئيسي -->
+<section class="hero-section bg-primary text-white py-5 mb-5">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8 text-center">
+                <h1 class="display-4 mb-4">ابحث عن عقارك المثالي</h1>
+                <p class="lead mb-4">نوفر لك أفضل العقارات في اليمن بأسعار مناسبة</p>
+                
+                <!-- نموذج البحث -->
+                <div class="search-form bg-white p-4 rounded shadow-lg">
+                    <form method="get" action="{% url 'properties:property_list' %}" class="row g-3">
+                        <div class="col-md-4">
+                            <select name="property_type" class="form-select">
+                                <option value="">نوع العقار</option>
+                                <option value="apartment">شقة</option>
+                                <option value="house">منزل</option>
+                                <option value="villa">فيلا</option>
+                                <option value="land">أرض</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <select name="listing_type" class="form-select">
+                                <option value="">نوع العرض</option>
+                                <option value="sale">للبيع</option>
+                                <option value="rent">للإيجار</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <button type="submit" class="btn btn-primary w-100">بحث</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- إحصائيات سريعة -->
+<section class="stats-section py-4 mb-5 bg-light">
+    <div class="container">
+        <div class="row text-center">
+            <div class="col-md-3 col-6 mb-3">
+                <div class="stat-card bg-white p-3 rounded shadow-sm">
+                    <i class="fas fa-home fa-2x text-primary mb-2"></i>
+                    <h3 class="mb-1">{{ properties.count }}</h3>
+                    <p class="text-muted mb-0">عقار متاح</p>
+                </div>
+            </div>
+            <div class="col-md-3 col-6 mb-3">
+                <div class="stat-card bg-white p-3 rounded shadow-sm">
+                    <i class="fas fa-map-marker-alt fa-2x text-danger mb-2"></i>
+                    <h3 class="mb-1">{{ governorates.count }}</h3>
+                    <p class="text-muted mb-0">محافظة</p>
+                </div>
+            </div>
+            <div class="col-md-3 col-6 mb-3">
+                <div class="stat-card bg-white p-3 rounded shadow-sm">
+                    <i class="fas fa-users fa-2x text-success mb-2"></i>
+                    <h3 class="mb-1">{{ users.count }}</h3>
+                    <p class="text-muted mb-0">مستخدم مسجل</p>
+                </div>
+            </div>
+            <div class="col-md-3 col-6 mb-3">
+                <div class="stat-card bg-white p-3 rounded shadow-sm">
+                    <i class="fas fa-handshake fa-2x text-info mb-2"></i>
+                    <h3 class="mb-1">{{ deals_count }}</h3>
+                    <p class="text-muted mb-0">صفقة ناجحة</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- قائمة العقارات -->
+<div class="container">
+    <div class="row">
+        {% for property in properties %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card property-card h-100 border-0 shadow-sm">
+                    {% if property.images.exists %}
+                    <img src="{{ property.images.first.image.url }}" class="card-img-top" alt="{{ property.title }}"
+                         style="height: 200px; object-fit: cover;">
+                    {% else %}
+                    <img src="{% static 'images/property-placeholder.jpg' %}" class="card-img-top" alt="صورة افتراضية"
+                         style="height: 200px; object-fit: cover;">
+                    {% endif %}
+
+                    <!-- محتوى العقار -->
+                    <div class="card-body">
+                        <h5 class="card-title mb-2">{{ property.title }}</h5>
+                        
+                        <!-- معلومات رئيسية -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="text-primary fw-bold">{{ property.price }} {{ property.get_currency_display }}</span>
+                                <span class="badge {% if property.is_available %}bg-success{% else %}bg-danger{% endif %}">
+                                    {% if property.is_available %}متاح{% else %}غير متاح{% endif %}
+                                </span>
+                            </div>
+                            <div class="row text-muted small">
+                                <div class="col-6 mb-1">
+                                    <i class="fas fa-home text-primary"></i> {{ property.get_property_type_display }}
+                                </div>
+                                <div class="col-6 mb-1">
+                                    <i class="fas fa-tag text-success"></i> {{ property.get_listing_type_display }}
+                                </div>
+                                <div class="col-12 mb-1">
+                                    <i class="fas fa-map-marker-alt text-danger"></i> {{ property.governorate.name }} - {{ property.district.name }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- تفاصيل الغرف -->
+                        <div class="row text-muted small mb-3">
+                            <div class="col-6 mb-1">
+                                <i class="fas fa-bed"></i> عدد غرف النوم: {{ property.bedrooms|default_if_none:"0" }}
+                            </div>
+                            <div class="col-6 mb-1">
+                                <i class="fas fa-bath"></i> عدد الحمامات: {{ property.bathrooms|default_if_none:"0" }}
+                            </div>
+                            <div class="col-6 mb-1">
+                                <i class="fas fa-couch text-success"></i> عدد المجالس: {{ property.majlis|default_if_none:"0" }}
+                            </div>
+                            <div class="col-6 mb-1">
+                                <i class="fas fa-utensils"></i> عدد المطابخ: {{ property.kitchens|default_if_none:"0" }}
+                            </div>
+                            <div class="col-6 mb-1">
+                                <i class="fas fa-couch"></i> عدد الصالات: {{ property.living_rooms|default_if_none:"0" }}
+                            </div>
+                            <div class="col-6 mb-1">
+                                <i class="fas fa-ruler-combined"></i> المساحة: {{ property.area|default_if_none:"0" }} متر مربع
+                            </div>
+                        </div>
+                        
+                        <a href="{% url 'properties:property_detail' property.pk %}" class="btn btn-outline-primary w-100">
+                            عرض التفاصيل
+                        </a>
+                    </div>
+                </div>
+            </div>
+        {% empty %}
+            <div class="col-12 text-center py-5">
+                <i class="fas fa-home fa-3x text-muted mb-3"></i>
+                <h3>لا توجد عقارات متاحة حالياً</h3>
+                <p class="text-muted">يرجى المحاولة مرة أخرى لاحقاً</p>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .hero-section {
+        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+    }
+    
+    .search-form {
+        transform: translateY(20px);
+    }
+    
+    .stat-card {
+        transition: transform 0.3s ease;
+    }
+    
+    .stat-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .property-card {
+        transition: transform 0.3s ease;
+    }
+    
+    .property-card:hover {
+        transform: translateY(-5px);
+    }
+</style>
+{% endblock %}

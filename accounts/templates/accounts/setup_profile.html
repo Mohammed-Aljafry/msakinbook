@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}إعداد الملف الشخصي{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h3 class="card-title text-center mb-4">أضف صورتك الشخصية</h3>
+                    
+                    <div class="text-center mb-4">
+                        <img src="{{ user.profile.avatar_url }}" 
+                             alt="{{ user.username }}" 
+                             class="rounded-circle profile-preview"
+                             style="width: 150px; height: 150px; object-fit: cover;">
+                    </div>
+
+                    <form method="post" enctype="multipart/form-data" class="mb-3">
+                        {% csrf_token %}
+                        <div class="mb-4">
+                            {{ form|crispy }}
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>حفظ الصورة
+                            </button>
+                            <button type="submit" name="skip" class="btn btn-outline-secondary">
+                                <i class="fas fa-forward me-2"></i>تخطي هذه الخطوة
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="text-center text-muted">
+                        <small>يمكنك تغيير صورتك الشخصية لاحقاً من صفحة الملف الشخصي</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.profile-preview {
+    border: 3px solid #fff;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+}
+
+.profile-preview:hover {
+    transform: scale(1.05);
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const avatarInput = document.querySelector('input[type="file"]');
+    const previewImage = document.querySelector('.profile-preview');
+
+    avatarInput.addEventListener('change', function() {
+        if (this.files && this.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                previewImage.src = e.target.result;
+            }
+            reader.readAsDataURL(this.files[0]);
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,444 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+    .message-deleted {
+        font-style: italic;
+        color: #999;
+    }
+    .typing-indicator {
+        color: #666;
+        font-style: italic;
+        margin-bottom: 10px;
+        display: none;
+    }
+    .online-status {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 5px;
+    }
+    .online-status.online {
+        background-color: #28a745;
+    }
+    .online-status.offline {
+        background-color: #dc3545;
+    }
+    .message-options {
+        display: none;
+        position: absolute;
+        right: 0;
+        top: 0;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 5px;
+    }
+    .message:hover .message-options {
+        display: block;
+    }
+    .image-preview {
+        max-width: 200px;
+        max-height: 200px;
+        margin-top: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="card">
+        <div class="card-header bg-primary text-white d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center">
+                <img src="{{ other_user.profile.avatar_url }}" class="rounded-circle me-2" style="width: 40px; height: 40px; object-fit: cover;">
+                <div>
+                    <h5 class="mb-0">{{ other_user.get_full_name|default:other_user.username }}</h5>
+                    <small class="user-status">
+                        <span class="online-status"></span>
+                        <span class="status-text">غير متصل</span>
+                    </small>
+                </div>
+            </div>
+        </div>
+        <div class="card-body" style="height: 400px; overflow-y: auto;" id="messages-container">
+            <div class="typing-indicator">جاري الكتابة...</div>
+            <div id="messages-list">
+                {% for message in messages %}
+                <div class="message mb-3 {% if message.sender == request.user %}text-end{% endif %}" data-message-id="{{ message.id }}">
+                    <div class="d-inline-block p-2 rounded {% if message.sender == request.user %}bg-primary text-white{% else %}bg-light{% endif %}" style="max-width: 75%; position: relative;">
+                        {% if message.is_deleted %}
+                            <span class="message-deleted">تم حذف هذه الرسالة</span>
+                        {% else %}
+                            {% if message.image %}
+                                <img src="{{ message.image.url }}" class="img-fluid rounded mb-2" style="max-width: 200px;">
+                            {% endif %}
+                            {{ message.content }}
+                            {% if message.sender == request.user %}
+                                <div class="message-options">
+                                    <button class="btn btn-sm btn-danger delete-message">حذف</button>
+                                </div>
+                            {% endif %}
+                        {% endif %}
+                        <div class="small text-{% if message.sender == request.user %}light{% else %}muted{% endif %}">
+                            {{ message.created_at|date:"g:i A" }}
+                            {% if message.sender == request.user %}
+                                <span class="read-status">
+                                    {% if message.is_read %}
+                                        <i class="fas fa-check-double"></i>
+                                    {% else %}
+                                        <i class="fas fa-check"></i>
+                                    {% endif %}
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="card-footer">
+            <form id="chat-form" class="d-flex flex-column">
+                <div class="d-flex mb-2">
+                    <input type="text" id="chat-message-input" class="form-control me-2" placeholder="اكتب رسالتك هنا...">
+                    <button type="button" class="btn btn-secondary me-2" id="image-upload-btn">
+                        <i class="fas fa-image"></i>
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+                <input type="file" id="image-upload" accept="image/*" style="display: none;">
+                <div id="image-preview-container"></div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Notification Sound -->
+<audio id="message-sound" preload="auto">
+    <source src="{% static 'chat/notification.mp3' %}" type="audio/mpeg">
+</audio>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const messagesContainer = document.getElementById('messages-container');
+    const messagesList = document.getElementById('messages-list');
+    const chatForm = document.getElementById('chat-form');
+    const messageInput = document.getElementById('chat-message-input');
+    const imageUpload = document.getElementById('image-upload');
+    const imageUploadBtn = document.getElementById('image-upload-btn');
+    const imagePreviewContainer = document.getElementById('image-preview-container');
+    const messageSound = document.getElementById('message-sound');
+    const typingIndicator = document.querySelector('.typing-indicator');
+    let typingTimeout;
+    let chatSocket = null;
+    let isConnecting = false;
+    
+    // تهيئة WebSocket
+    function initWebSocket() {
+        if (chatSocket !== null || isConnecting) return;
+        
+        isConnecting = true;
+        chatSocket = new WebSocket('ws://' + window.location.host + '/ws/chat/');
+        
+        chatSocket.onopen = function(e) {
+            console.log('WebSocket connection established');
+            isConnecting = false;
+            
+            // Mark messages as read when connection is established
+            chatSocket.send(JSON.stringify({
+                'type': 'mark_read',
+                'conversation_id': {{ conversation.id }}
+            }));
+        };
+        
+        chatSocket.onclose = function(e) {
+            console.log('WebSocket connection closed. Reconnecting...');
+            chatSocket = null;
+            isConnecting = false;
+            setTimeout(initWebSocket, 1000);
+        };
+        
+        chatSocket.onerror = function(e) {
+            console.error('WebSocket error:', e);
+            chatSocket = null;
+            isConnecting = false;
+        };
+        
+        chatSocket.onmessage = function(e) {
+            console.log('Received message:', e.data);
+            const data = JSON.parse(e.data);
+            
+            switch(data.type) {
+                case 'chat_message':
+                    console.log('Processing chat message:', data);
+                    handleChatMessage(data);
+                    break;
+                case 'typing_notification':
+                    console.log('Processing typing notification:', data);
+                    handleTypingNotification(data);
+                    break;
+                case 'message_deleted':
+                    console.log('Processing message deleted:', data);
+                    handleMessageDeleted(data);
+                    break;
+                case 'messages_read':
+                    console.log('Processing messages read:', data);
+                    handleMessagesRead(data);
+                    break;
+                case 'user_status':
+                    console.log('Processing user status:', data);
+                    handleUserStatus(data);
+                    break;
+                default:
+                    console.log('Unknown message type:', data.type);
+            }
+        };
+    }
+
+    // إرسال رسالة عبر WebSocket
+    function sendWebSocketMessage(messageData) {
+        return new Promise((resolve, reject) => {
+            if (!chatSocket || chatSocket.readyState !== WebSocket.OPEN) {
+                initWebSocket();
+                setTimeout(() => sendWebSocketMessage(messageData).then(resolve).catch(reject), 1000);
+                return;
+            }
+            
+            try {
+                chatSocket.send(JSON.stringify(messageData));
+                resolve();
+            } catch (error) {
+                console.error('Error sending message:', error);
+                reject(error);
+            }
+        });
+    }
+    
+    // معالجة إرسال النموذج
+    chatForm.onsubmit = async function(e) {
+        e.preventDefault();
+        const message = messageInput.value.trim();
+        const imageInput = imageUpload.files[0];
+        
+        if (message || imageInput) {
+            const messageData = {
+                'type': 'chat_message',
+                'message': message,
+                'recipient_id': {{ other_user.id }}
+            };
+            
+            try {
+                if (imageInput) {
+                    const base64Image = await new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => resolve(e.target.result);
+                        reader.readAsDataURL(imageInput);
+                    });
+                    
+                    messageData.image = base64Image;
+                }
+                
+                await sendWebSocketMessage(messageData);
+                messageInput.value = '';
+                clearImagePreview();
+            } catch (error) {
+                console.error('Error sending message:', error);
+                alert('حدث خطأ أثناء إرسال الرسالة. الرجاء المحاولة مرة أخرى.');
+            }
+        }
+    };
+
+    // بدء الاتصال
+    initWebSocket();
+    
+    // Scroll to bottom of messages
+    function scrollToBottom() {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+    
+    scrollToBottom();
+    
+    // Handle typing status
+    messageInput.addEventListener('input', function() {
+        clearTimeout(typingTimeout);
+        sendWebSocketMessage({
+            'type': 'typing_status',
+            'conversation_id': {{ conversation.id }},
+            'is_typing': true
+        });
+        
+        typingTimeout = setTimeout(() => {
+            sendWebSocketMessage({
+                'type': 'typing_status',
+                'conversation_id': {{ conversation.id }},
+                'is_typing': false
+            });
+        }, 1000);
+    });
+    
+    // Handle image upload
+    imageUploadBtn.addEventListener('click', () => imageUpload.click());
+    
+    imageUpload.addEventListener('change', function() {
+        const file = this.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                imagePreviewContainer.innerHTML = `
+                    <img src="${e.target.result}" class="image-preview">
+                    <button type="button" class="btn btn-sm btn-danger mt-2" onclick="clearImagePreview()">إلغاء</button>
+                `;
+            }
+            reader.readAsDataURL(file);
+        }
+    });
+    
+    function clearImagePreview() {
+        imagePreviewContainer.innerHTML = '';
+        imageUpload.value = '';
+    }
+    
+    // Handle message deletion
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('delete-message')) {
+            const messageDiv = e.target.closest('.message');
+            const messageId = messageDiv.dataset.messageId;
+            
+            if (confirm('هل أنت متأكد من حذف هذه الرسالة؟')) {
+                console.log('Sending delete request for message:', messageId);
+                sendWebSocketMessage({
+                    'type': 'delete_message',
+                    'message_id': messageId
+                });
+                
+                // تحديث واجهة المستخدم مباشرة
+                handleMessageDeleted({
+                    message: {
+                        message_id: messageId
+                    }
+                });
+            }
+        }
+    });
+    
+    function handleMessageDeleted(data) {
+        console.log('Handling message deletion:', data);
+        const messageData = data.message || data;
+        const messageId = messageData.message_id;
+        console.log('Looking for message with ID:', messageId);
+        
+        const messageDiv = document.querySelector(`.message[data-message-id="${messageId}"]`);
+        console.log('Found message element:', messageDiv);
+        
+        if (messageDiv) {
+            console.log('Updating message content');
+            const messageContent = messageDiv.querySelector('.d-inline-block');
+            const timeString = messageContent.querySelector('.small').textContent;
+            
+            messageContent.innerHTML = `
+                <span class="message-deleted">تم حذف هذه الرسالة</span>
+                <div class="small text-muted">
+                    ${timeString}
+                </div>
+            `;
+            
+            // إزالة زر الحذف
+            const deleteButton = messageContent.querySelector('.message-options');
+            if (deleteButton) {
+                deleteButton.remove();
+            }
+        } else {
+            console.error('Message element not found for ID:', messageId);
+        }
+    }
+    
+    function handleChatMessage(data) {
+        const messageData = data.message || data;
+        const isCurrentUser = messageData.sender_id === {{ request.user.id }};
+        
+        // Play sound for incoming messages
+        if (!isCurrentUser) {
+            messageSound.play().catch(e => console.log('Error playing sound:', e));
+        }
+        
+        // Create message element
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message mb-3 ${isCurrentUser ? 'text-end' : ''}`;
+        messageDiv.dataset.messageId = messageData.id;
+        
+        // Format timestamp
+        const timestamp = new Date(messageData.created_at);
+        const timeString = timestamp.toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'});
+        
+        // Create message content
+        let messageContent = `
+            <div class="d-inline-block p-2 rounded ${isCurrentUser ? 'bg-primary text-white' : 'bg-light'}" style="max-width: 75%; position: relative;">
+        `;
+        
+        if (messageData.image) {
+            messageContent += `<img src="${messageData.image}" class="img-fluid rounded mb-2" style="max-width: 200px;"><br>`;
+        }
+        
+        messageContent += `
+                ${messageData.content}
+                ${isCurrentUser ? `
+                    <div class="message-options">
+                        <button class="btn btn-sm btn-danger delete-message">حذف</button>
+                    </div>
+                ` : ''}
+                <div class="small text-${isCurrentUser ? 'light' : 'muted'}">
+                    ${timeString}
+                    ${isCurrentUser ? `<span class="read-status"><i class="fas fa-${messageData.is_read ? 'check-double' : 'check'}"></i></span>` : ''}
+                </div>
+            </div>
+        `;
+        
+        messageDiv.innerHTML = messageContent;
+        messagesList.appendChild(messageDiv);
+        scrollToBottom();
+        
+        // Clear input and preview
+        if (isCurrentUser) {
+            messageInput.value = '';
+            clearImagePreview();
+        }
+    }
+    
+    function handleTypingNotification(data) {
+        if (data.user_id !== {{ request.user.id }}) {
+            if (data.is_typing) {
+                typingIndicator.style.display = 'block';
+            } else {
+                typingIndicator.style.display = 'none';
+            }
+        }
+    }
+    
+    function handleMessagesRead(data) {
+        if (data.reader_id !== {{ request.user.id }}) {
+            document.querySelectorAll('.read-status').forEach(status => {
+                status.innerHTML = '<i class="fas fa-check-double"></i>';
+            });
+        }
+    }
+    
+    function handleUserStatus(data) {
+        const statusDot = document.querySelector('.online-status');
+        const statusText = document.querySelector('.status-text');
+        
+        if (data.is_online) {
+            statusDot.classList.add('online');
+            statusDot.classList.remove('offline');
+            statusText.textContent = 'متصل';
+        } else {
+            statusDot.classList.add('offline');
+            statusDot.classList.remove('online');
+            statusText.textContent = 'غير متصل';
+        }
+    }
+</script>
+{% endblock %}
